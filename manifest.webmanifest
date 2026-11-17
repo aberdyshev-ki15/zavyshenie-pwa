@@ -1,0 +1,24 @@
+{
+  "id": "./",
+  "name": "Калькулятор завышения",
+  "short_name": "Завышение",
+  "description": "Калькулятор завышения — приложение для iPhone",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#142E53",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

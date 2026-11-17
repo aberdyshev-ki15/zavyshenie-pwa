@@ -1,0 +1,489 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<meta name="theme-color" content="#142E53">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Завышение">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+</head><body>
+<title>Калькулятор завышения</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Serif:wght@700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: tabs → form column + sticky result with line-by-line calculation (единый стиль калькуляторов) */
+:root{
+  --bg:#EEF2F1; --surface:#FFFFFF; --ink:#18282C; --muted:#5A6B6F; --line:#D3DCDB;
+  --accent:#1D5C86; --accent-soft:#E2EDF4; --good:#1F7A4D; --good-soft:#E3F2E9; --warn:#A35A00; --warn-soft:#FBEEDC;
+  --display:"PT Serif", Georgia, serif; --body:"Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif; --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111A1C; --surface:#18252A; --ink:#E4ECEB; --muted:#93A5A8; --line:#2C3D42;
+  --accent:#7DB6DD; --accent-soft:#1B3343; --good:#6CC79A; --good-soft:#163227; --warn:#E3A657; --warn-soft:#3A2A14; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111A1C; --surface:#18252A; --ink:#E4ECEB; --muted:#93A5A8; --line:#2C3D42;
+  --accent:#7DB6DD; --accent-soft:#1B3343; --good:#6CC79A; --good-soft:#163227; --warn:#E3A657; --warn-soft:#3A2A14; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 48px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:20px}
+header{display:grid;gap:4px}
+h1{font-family:var(--display);font-size:clamp(26px,4vw,36px);line-height:1.15;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:0}
+.tabs{display:flex;flex-direction:column;gap:4px;max-width:420px}
+.tab{appearance:none;border:1px solid var(--line);background:var(--surface);font:inherit;font-weight:600;color:var(--muted);padding:10px 14px;cursor:pointer;border-radius:8px;text-align:left;border-left:4px solid var(--line)}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--accent);border-color:var(--accent);border-left-color:var(--accent);background:var(--accent-soft)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:18px;min-width:0}
+fieldset{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}
+legend{font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label.f{display:grid;gap:4px;font-size:13px;font-weight:600;min-width:0}
+label.f small{font-weight:400;color:var(--muted);font-size:12.5px}
+input[type=text],select{font:inherit;font-size:15px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;min-width:0}
+input.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
+.check input{margin-top:3px;width:17px;height:17px;accent-color:var(--accent);flex:none}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-size:13.5px;cursor:pointer;background:var(--bg)}
+.seg input{accent-color:var(--accent)}
+.seg label:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.result{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 12px)}
+@media (max-width:820px){.result{position:static}}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding-bottom:14px;border-bottom:1px dashed var(--line)}
+.kpi{display:grid;gap:2px}
+.kpi .lbl{font-size:13px;color:var(--muted);font-weight:600}
+.kpi .sum{font-family:var(--mono);font-size:clamp(20px,3.4vw,26px);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pill{display:inline-block;justify-self:start;font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.pill.good{background:var(--good-soft);color:var(--good)}.pill.warn{background:var(--warn-soft);color:var(--warn)}
+table.calc{width:100%;border-collapse:collapse;font-size:13.5px}
+table.calc td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.calc td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:12px}
+table.calc tr.strong td{font-weight:700}
+table.calc tr.key td{background:var(--accent);color:var(--surface);font-weight:700;font-size:15px;padding:9px 10px;border-bottom:0}
+table.calc tr.key td:first-child{border-radius:7px 0 0 7px}table.calc tr.key td:last-child{border-radius:0 7px 7px 0}
+table.calc tr.ord td{background:var(--accent-soft);font-weight:600;padding:6px 10px;border-bottom:1px solid var(--surface)}
+table.calc tr.ordh td{padding-top:10px;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+table.calc tr.head td{padding-top:14px;font-weight:700;color:var(--accent);border-bottom:2px solid var(--accent-soft)}
+table.calc tr.side td{color:var(--muted)}
+.notes{display:grid;gap:8px;font-size:13px;color:var(--muted)}
+.notes p{margin:0}
+.tbls{display:grid;gap:16px}
+table.calc.box{border:2px solid var(--accent);border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden}
+table.calc.box td{padding-left:12px;padding-right:12px}
+table.calc.box tr.head td{background:var(--accent);color:var(--surface);font-size:16px;padding-top:10px;padding-bottom:10px;border-bottom:0}
+table.calc.box tr.key td{border-radius:0}
+table.calc tr.wrap td:last-child{white-space:normal;text-align:right;font-family:var(--body)}
+table.calc tr.wrow td{background:var(--warn-soft);color:#B42318;font-weight:700}
+.wbox{display:grid;gap:6px;background:var(--warn-soft);border:1px solid #C2410C;border-left:6px solid #C2410C;border-radius:8px;padding:12px 14px;font-size:14px}
+.wbox .wt{color:#C2410C;font-size:16px}
+.wbox .wa{color:#B42318;font-size:20px;font-family:var(--mono)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .wbox .wa,:root:not([data-theme="light"]) table.calc tr.wrow td{color:#FF8A75}}
+:root[data-theme="dark"] .wbox .wa,:root[data-theme="dark"] table.calc tr.wrow td{color:#FF8A75}
+.note-warn{background:var(--warn-soft);color:var(--ink);border-radius:7px;padding:10px 12px;font-size:13px}
+.memo{display:grid;gap:14px}
+.step{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px;max-width:80ch}
+.step h2{font-family:var(--display);font-size:20px;margin:0}
+.step p,.step ul{margin:0}.step ul{padding-left:20px;display:grid;gap:5px}
+.fx{font-family:var(--mono);background:var(--accent-soft);color:var(--accent);border-radius:7px;padding:10px 12px;font-size:14px}
+.report{background:#fff;color:#1a1a1a;border:1px solid var(--line);border-radius:6px;padding:clamp(18px,4vw,40px);max-width:800px;font-family:var(--body);font-size:14px;display:grid;gap:18px}
+.report h2{font-family:var(--display);font-size:22px;margin:0}
+.report .meta{color:#555;font-size:13px;display:grid;gap:2px}
+.report h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#1D5C86;border-bottom:2px solid #1D5C86;padding-bottom:4px}
+.report table{width:100%;border-collapse:collapse}
+.report td{padding:5px 0;border-bottom:1px solid #e2e2e2;vertical-align:top}
+.report td:last-child{text-align:right;font-family:var(--mono);white-space:nowrap;padding-left:12px}
+.report tr.b td{font-weight:700}
+.report tr.k td{background:#E2EDF4;font-weight:700;padding:7px 8px}
+.report tr.s td{color:#666}
+.report .w{background:#FBEEDC;border-radius:5px;padding:8px 10px;font-size:13px}
+.report .c{font-size:11.5px;color:#777;border-top:1px solid #e2e2e2;padding-top:8px}
+.dl{display:grid;gap:10px;border-top:1px dashed var(--line);padding-top:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:7px;padding:9px 14px;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--surface)}
+.dls{font-size:12.5px;color:var(--muted)}
+.copyright{margin:8px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);max-width:90ch}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Калькулятор завышения стоимости</h1>
+    <p class="sub">Дом + земельный участок с ипотекой: сумма завышения, займ на первоначальный взнос, цены по договору и порядок расчётов</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-c" aria-selected="true" aria-controls="p-c">Расчёт сделки</button>
+    <button class="tab" role="tab" id="tab-m" aria-selected="false" aria-controls="p-m">Памятка: как считается</button>
+  </div>
+
+  <section id="p-c" role="tabpanel" aria-labelledby="tab-c" class="grid">
+    <form class="panel" id="f" onsubmit="return false">
+      <fieldset>
+        <legend>Объект</legend>
+        <label class="f">Что продаём
+          <select id="obj">
+            <option value="build">Строим дом (договор подряда)</option>
+            <option value="ready">Готовый дом</option>
+          </select>
+        </label>
+        <label class="f">Реальная стоимость дома, ₽
+          <input type="text" id="house" class="num" inputmode="decimal" value="5 200 000">
+          <small>Сколько нам нужно получить за дом на самом деле</small>
+        </label>
+        <label class="f">Земельный участок в сделке
+          <select id="land">
+            <option value="ours">Да, участок наш</option>
+            <option value="other">Да, участок стороннего продавца</option>
+            <option value="none">Нет, участок уже у клиента</option>
+          </select>
+        </label>
+        <div id="land-box" class="row">
+          <label class="f">Реальная стоимость участка, ₽
+            <input type="text" id="landp" class="num" inputmode="decimal" value="800 000">
+          </label>
+        </div>
+        <div id="fix-wrap" class="row">
+          <label class="f">Завышение участка
+            <select id="lmode">
+              <option value="fixed">Не завышаем — всё завышение на дом</option>
+              <option value="prop">Пропорционально, как дом</option>
+              <option value="target">До конкретной стоимости по договору</option>
+            </select>
+          </label>
+          <label class="f" id="ltarget-wrap" hidden>Стоимость участка по договору, ₽
+            <input type="text" id="ltarget" class="num" inputmode="decimal" value="1 000 000">
+            <small>Например, участок стоит 700 000, по договору 1 000 000</small>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Требование банка к первоначальному взносу</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="pvmode" id="pv-pct" value="pct" checked> В процентах</label>
+          <label><input type="radio" name="pvmode" id="pv-sum" value="sum"> Конкретной суммой</label>
+        </div>
+        <label class="f" id="pct-wrap">Первоначальный взнос, % от стоимости по договору
+          <input type="text" id="pct" class="num" inputmode="decimal" value="21">
+        </label>
+        <label class="f" id="sum-wrap" hidden>Первоначальный взнос, ₽
+          <input type="text" id="pvsum" class="num" inputmode="decimal" value="1 500 000">
+        </label>
+        <label class="f">Минимальный взнос по программе, %
+          <input type="text" id="minpv" class="num" inputmode="decimal" value="20">
+          <small>Например, семейная ипотека — от 20 %. Калькулятор предупредит, если взнос ниже</small>
+        </label>
+        <label class="f">Округлять цену по договору вверх до
+          <select id="rnd">
+            <option value="1">1 ₽ (без округления)</option>
+            <option value="1000" selected>1 000 ₽</option>
+            <option value="10000">10 000 ₽</option>
+            <option value="50000">50 000 ₽</option>
+            <option value="100000">100 000 ₽</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Деньги клиента</legend>
+        <div class="row">
+          <label class="f">Материнский капитал, ₽
+            <input type="text" id="msk" class="num" inputmode="decimal" value="690 266">
+            <small>0, если нет</small>
+          </label>
+          <label class="f">Собственные средства, ₽
+            <input type="text" id="own" class="num" inputmode="decimal" value="0">
+            <small>0, если нет</small>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Ипотека</legend>
+        <label class="f">Сумма ипотеки, ₽
+          <input type="text" id="maxk" class="num" inputmode="decimal" placeholder="например, 6 000 000">
+          <small>Ипотека в расчёте не превысит эту сумму. Распределяется между участком и домом за вычетом первоначального взноса</small>
+        </label>
+      </fieldset>
+    </form>
+
+    <aside class="panel result" aria-live="polite">
+      <div class="kpis">
+        <div class="kpi"><span class="lbl">Сумма завышения</span><span class="sum" id="k-z">—</span></div>
+        <div class="kpi"><span class="lbl">Сумма займа на ПВ</span><span class="sum" id="k-l">—</span></div>
+        <div class="kpi"><span class="lbl">Процент завышения</span><span class="sum" id="k-p">—</span></div>
+        <div class="kpi"><span class="lbl">Кредит банка</span><span class="sum" id="k-k">—</span></div>
+        <span class="pill" id="pill">—</span>
+      </div>
+      <div id="tbl" class="tbls"></div>
+      <div class="notes" id="notes"></div>
+      <div class="dl">
+        <label class="f">Клиент / объект для отчёта
+          <input type="text" id="rclient" placeholder="например, Иванов И. И., уч. 15">
+        </label>
+        <div class="btns"><button type="button" class="btn primary" id="dlBtn">Скачать отчёт .docx</button><button type="button" class="btn" id="copyBtn">Скопировать текст</button></div>
+        <span class="dls" id="dlStatus" aria-live="polite"></span>
+      </div>
+    </aside>
+  </section>
+
+  <section id="p-m" role="tabpanel" aria-labelledby="tab-m" class="memo" hidden>
+    <div class="step">
+      <h2>Логика расчёта</h2>
+      <p>Реальная стоимость R = дом + участок. Деньги клиента C = МСК + собственные. Банк выдаёт кредит на цену по договору P за вычетом первоначального взноса. Нам нужно, чтобы кредит вместе с деньгами клиента закрыл реальную стоимость.</p>
+      <div class="fx">ПВ в %: P = (R − C) ÷ (1 − %ПВ)</div>
+      <div class="fx">ПВ суммой: P = R − C + ПВ</div>
+      <p>Взнос считается отдельно по участку и по дому. МСК идёт только на дом; взнос за участок закрывают собственные средства клиента, а если их нет — займ. Ипотека по каждому объекту = цена по договору − взнос. Общая ипотека не превышает указанную сумму ипотеки.</p>
+    </div>
+    <div class="step">
+      <h2>Завышение и займ</h2>
+      <ul>
+        <li>Завышение = P − R.</li>
+        <li>Займ на ПВ = требуемый ПВ − деньги клиента. Без округления он равен сумме завышения.</li>
+        <li>При округлении цены вверх появляется излишек: сколько мы получим сверх реальной стоимости.</li>
+      </ul>
+    </div>
+    <div class="step">
+      <h2>Разбивка цены</h2>
+      <ul>
+        <li>Участок стороннего продавца — его цена не меняется, завышение только на дом.</li>
+        <li>Участок наш — можно зафиксировать цену участка или распределить завышение пропорционально стоимостям дома и участка.</li>
+        <li>Участок уже у клиента — в сделке только дом.</li>
+      </ul>
+    </div>
+    <div class="step">
+      <h2>Риски</h2>
+      <p>Завышение цены и непоказанный банку займ на первоначальный взнос банк может расценить как предоставление недостоверных сведений (риск по ст. 159.1 УК РФ, отказ в кредите, требование досрочного погашения). При использовании МСК завышение также увеличивает сумму, на которую выделяются доли детям. Схему расчётов с банком и источник взноса стоит согласовывать до подачи заявки.</p>
+    </div>
+  </section>
+
+  <p class="copyright">© Емельяненко Дарья Александровна. Объект авторского права, РИД, распространение без согласия запрещено.</p>
+</div>
+
+<script src="./jszip.min.js"></script>
+<script>
+let LAST=null;
+const $=id=>document.getElementById(id);
+const num=s=>{const v=parseFloat(String(s).replace(/\s/g,'').replace(',','.'));return isFinite(v)?v:0};
+const rub=v=>{const k=Math.round(v*100)/100;return k.toLocaleString('ru-RU',Number.isInteger(k)?{maximumFractionDigits:0}:{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'};
+const fmtIn=el=>{const p=el.selectionStart,l=el.value.length;const raw=el.value.replace(/[^\d,]/g,'');const [i,d]=raw.split(',');const out=(i?Number(i).toLocaleString('ru-RU'):'')+(d!==undefined?','+d:'');el.value=out;const n=p+(out.length-l);try{el.setSelectionRange(n,n)}catch(e){}};
+['house','landp','ltarget','pvsum','msk','own','maxk'].forEach(id=>$(id).addEventListener('input',e=>fmtIn(e.target)));
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>{x.setAttribute('aria-selected',x===t);$(x.getAttribute('aria-controls')).hidden=x!==t});
+}));
+
+function plan(P,o,capK){
+  // o: {H,L,land,fixed,pctMode,pct,pvFix,msk,own}
+  const Lc=o.land==='none'?0:(o.lmode==='target'?o.Lt:o.lmode==='fixed'?o.L:o.L*P/(o.H+o.L));
+  const Hc=P-Lc;
+  const p=o.pctMode?o.pct:Math.min(1,o.pvFix/P);
+  const pvL=p*Lc, pvH=p*Hc;
+  // участок: только собственные средства (МСК нельзя)
+  const ownL=Math.min(o.own,pvL), loanL=Math.max(0,pvL-ownL);
+  const ownH=o.own-ownL;
+  const clientH=Math.min(Hc,o.msk+ownH);
+  const loanH=Math.max(0,pvH-clientH);
+  const crL=Math.max(0,Lc-Math.max(pvL,ownL));
+  let crH=Math.max(0,Hc-Math.max(pvH,clientH));
+  let crL2=crL, lL=loanL, lH=loanH;
+  if(capK!=null&&crL+crH>capK){crL2=Math.min(crL,capK);crH=capK-crL2;lL=Lc-ownL-crL2;lH=Hc-clientH-crH;
+    return {P,Lc,Hc,p,pvL,pvH,ownL,ownH,clientH,loanL:lL,loanH:lH,crL:crL2,crH,K:capK,loan:lL+lH,cash:capK+ownL+clientH};}
+  return {P,Lc,Hc,p,pvL,pvH,ownL,ownH,clientH,loanL,loanH,crL,crH,K:crL+crH,loan:loanL+loanH,cash:crL+crH+ownL+clientH};
+}
+function calc(){
+  const obj=$('obj').value, land=$('land').value;
+  $('land-box').hidden=land==='none';
+  $('fix-wrap').hidden=land!=='ours'; $('ltarget-wrap').hidden=$('lmode').value!=='target';
+  const pctMode=$('pv-pct').checked;
+  $('pct-wrap').hidden=!pctMode; $('sum-wrap').hidden=pctMode;
+  const o={H:num($('house').value),L:land==='none'?0:num($('landp').value),land,
+    lmode:land==='ours'?$('lmode').value:'fixed',Lt:num($('ltarget').value),pctMode,pct:num($('pct').value)/100,pvFix:num($('pvsum').value),
+    msk:num($('msk').value),own:num($('own').value)};
+  const R=o.H+o.L, step=+$('rnd').value, cap=num($('maxk').value);
+  const pill=$('pill');
+  if(R<=0||(pctMode&&o.pct>=1)){pill.className='pill warn';pill.textContent='Проверьте стоимость и процент взноса';return}
+
+  // минимальная цена по договору, при которой мы получаем реальную стоимость
+  let lo=R,hi=R*20;
+  if(plan(lo,o).cash<R){for(let i=0;i<80;i++){const m=(lo+hi)/2;plan(m,o).cash>=R?hi=m:lo=m}}else hi=R;
+  if(o.lmode==='target')hi=Math.max(hi,o.Lt+o.H);
+  let P=Math.max(R,Math.ceil(hi/step)*step);
+  let x=plan(P,o), capped=false;
+  // кредит не может превышать сумму ипотеки: цена округляется вверх, ипотека = сумма ипотеки, разница — займ/доплата
+  if(cap&&x.K>cap){
+    let a2=R,b2=P;
+    if(plan(R,o).K>=cap)b2=R;else for(let i=0;i<80;i++){const m=(a2+b2)/2;plan(m,o).K>=cap?b2=m:a2=m}
+    P=Math.max(R,Math.ceil(b2/step)*step); x=plan(P,o,cap); capped=true;
+  }
+  const Z=P-R, short=R-x.cash;
+
+  $('k-z').textContent=rub(Z); $('k-l').textContent=rub(x.loan);
+  $('k-p').textContent=(Z/R*100).toFixed(1).replace('.',',')+' %'; $('k-k').textContent=rub(x.K);
+  if(short>1){pill.className='pill warn';pill.textContent='Ипотеки не хватает: клиент доплачивает '+rub(short)}
+  else if(Z===0){pill.className='pill good';pill.textContent='Завышение не нужно'}
+  else {pill.className='pill';pill.textContent='Общая стоимость под завышение '+rub(P)}
+
+  const hName=obj==='build'?'Дом (договор подряда)':'Дом';
+  const pTxt=pctMode?` (${(o.pct*100).toLocaleString('ru-RU')} %)`:` (${(x.p*100).toFixed(2).replace('.',',')} %)`;
+  const r=[];
+  let open=false;
+  const h=(t,box)=>{r.push((open?'</tbody></table>':'')+`<table class="calc${box?' box':''}"><tbody><tr class="head"><td>${t}</td><td></td></tr>`);open=true};
+  const row=(a,b,c='')=>r.push(`<tr class="${c}"><td>${a}</td><td>${b}</td></tr>`);
+  const pc=v=>(v*100).toFixed(1).replace('.',',')+' %';
+  const pay=short>1?short:0;
+  const mskH=Math.min(o.msk,x.clientH), ownHx=x.clientH-mskH;
+  const srcs=['ипотечных средств']; if(mskH)srcs.push('средств МСК'); if(o.own)srcs.push('собственных средств');
+  const srcTxt='за счёт '+srcs.join(', ').replace(/, ([^,]*)$/,' и $1');
+
+  h('Общая информация');
+  row('Реальная стоимость'+(land!=='none'?' (дом + участок)':''),rub(R));
+  row('Общая стоимость под завышение (дом + участок)',rub(P),'strong');
+  row('Завышение',rub(Z)+' · '+pc(Z/R),'strong');
+  row('Ипотека',rub(x.K));
+  row('Займ на первоначальный взнос',rub(x.loan));
+  if(pay)row('Доплата клиента сверх ипотеки',rub(pay),'wrow');
+
+  h(hName,1);
+  row('Реальная стоимость',rub(o.H));
+  row('Завышение',rub(x.Hc-o.H));
+  row('Порядок расчётов по договору','','ordh');
+  row('Цена по договору',rub(x.Hc),'key');
+  let n=1;
+  if(mskH)row(`${n++}. Материнский капитал`,rub(mskH),'ord');
+  if(ownHx)row(`${n++}. Собственные средства`,rub(ownHx),'ord');
+  if(x.loanH)row(`${n++}. Займ (первоначальный взнос)`,rub(x.loanH),'ord');
+  row(`${n++}. Ипотека`,rub(x.crH),'ord');
+
+  if(land!=='none'){
+    h('Земельный участок'+(land==='other'?' (сторонний продавец)':''),1);
+    row('Реальная стоимость',rub(o.L));
+    if(x.Lc-o.L>0.5)row('Завышение',rub(x.Lc-o.L));
+    row('Порядок расчётов по договору','','ordh');
+    row('Цена по договору',rub(x.Lc),'key');
+    n=1;
+    if(x.ownL)row(`${n++}. Собственные средства`,rub(x.ownL),'ord');
+    if(x.loanL)row(`${n++}. Займ (первоначальный взнос)`,rub(x.loanL),'ord');
+    row(`${n++}. Ипотека`,rub(x.crL),'ord');
+  }
+
+  h('Займ',1);
+  row('Сумма займа',rub(x.loan),'strong');
+  if(land!=='none'){row('&nbsp;&nbsp;в т. ч. на дом',rub(x.loanH),'side');row('&nbsp;&nbsp;в т. ч. на участок',rub(x.loanL),'side');}
+  row('Погашение',srcTxt,'wrap');
+  if(pay)row('Не хватает для погашения — клиент вносит собственные средства',rub(pay),'wrow');
+  if(cap) row('Остаток от суммы ипотеки',rub(cap-x.K),'side');
+  r.push('</tbody></table>');
+  if(pay)r.push(`<div class="wbox"><b class="wt">⚠ Ипотеки${o.msk?' и материнского капитала':''} не хватает</b><span>Недополучаем: <b class="wa">${rub(pay)}</b></span><span>Клиенту нужно внести собственные средства на эту сумму. Если своих средств нет, сделка в таком виде не закрывается.</span></div>`);
+  $('tbl').innerHTML=r.join('');
+
+  const notes=[];
+  const minpv=num($('minpv').value)/100;
+  if(minpv&&x.p<minpv-1e-9){pill.className='pill warn';pill.textContent='Взнос ниже минимума программы';notes.push(`<p class="note-warn">Первоначальный взнос ${(x.p*100).toFixed(2).replace('.',',')} % ниже минимального по программе ${(minpv*100).toLocaleString('ru-RU')} %. Минимальный взнос при цене ${rub(P)} — ${rub(minpv*P)}.</p>`)}
+  if(short>1)notes.push(`<p class="note-warn">Суммы ипотеки ${rub(cap)} не хватает. Цена по договору ограничена ${rub(P)}, мы недополучаем ${rub(short)}. Нужна ипотека больше, больше собственных средств клиента или ниже реальная стоимость.</p>`);
+  if(x.loanL)notes.push('<p>Взнос за участок закрыт займом, потому что МСК нельзя направить на участок. Если у клиента есть свои деньги, внесите их — они идут на участок в первую очередь.</p>');
+  if(o.msk>x.clientH)notes.push('<p class="note-warn">МСК больше цены дома по договору — часть МСК не использована.</p>');
+  if(o.msk&&Z>0)notes.push('<p>С МСК доли детям выделяются от цены по договору, поэтому завышение увеличивает их долю в денежном выражении.</p>');
+  $('notes').innerHTML=notes.join('');
+  // ---------- отчёт ----------
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const T=(rows)=>'<table>'+rows.map(([a,b,c=''])=>`<tr class="${c}"><td>${a}</td><td>${b}</td></tr>`).join('')+'</table>';
+  const landTxt={ours:'наш',other:'стороннего продавца',none:'нет в сделке (уже у клиента)'}[land];
+  const lmTxt={fixed:'не завышается',prop:'пропорционально дому',target:'до '+rub(o.Lt)}[o.lmode];
+  const inp=[['Объект',obj==='build'?'строительство дома':'готовый дом'],['Земельный участок',landTxt],
+    ['Реальная стоимость дома',rub(o.H)]];
+  if(land!=='none'){inp.push(['Реальная стоимость участка',rub(o.L)]); if(land==='ours')inp.push(['Завышение участка',lmTxt]);}
+  inp.push(['Первоначальный взнос',pctMode?(o.pct*100).toLocaleString('ru-RU')+' %':rub(o.pvFix)]);
+  if(minpv)inp.push(['Минимальный взнос по программе',(minpv*100).toLocaleString('ru-RU')+' %']);
+  inp.push(['Материнский капитал',rub(o.msk)],['Собственные средства',rub(o.own)]);
+  if(cap)inp.push(['Сумма ипотеки',rub(cap)]);
+  const tot=[['Реальная стоимость (дом + участок)',rub(R)],['Общая стоимость под завышение',rub(P),'k'],
+    ['Завышение',rub(Z)+' · '+pc(Z/R),'b'],['Ипотека',rub(x.K)],['Займ на первоначальный взнос',rub(x.loan)]];
+  if(pay)tot.push(['Доплата клиента',rub(pay),'b']);
+  const hr=[['Реальная стоимость',rub(o.H)],['Завышение',rub(x.Hc-o.H)],['Порядок расчётов по договору','','h'],['Цена по договору',rub(x.Hc),'k']];
+  let m=1;
+  if(mskH)hr.push([`${m++}. Материнский капитал`,rub(mskH)]);
+  if(ownHx)hr.push([`${m++}. Собственные средства`,rub(ownHx)]);
+  if(x.loanH)hr.push([`${m++}. Займ (первоначальный взнос)`,rub(x.loanH)]);
+  hr.push([`${m++}. Ипотека`,rub(x.crH)]);
+  let lr=null;
+  if(land!=='none'){lr=[['Реальная стоимость',rub(o.L)]];
+    if(x.Lc-o.L>0.5)lr.push(['Завышение',rub(x.Lc-o.L)]);
+    lr.push(['Порядок расчётов по договору','','h'],['Цена по договору',rub(x.Lc),'k']);
+    m=1; if(x.ownL)lr.push([`${m++}. Собственные средства`,rub(x.ownL)]);
+    if(x.loanL)lr.push([`${m++}. Займ (первоначальный взнос)`,rub(x.loanL)]);
+    lr.push([`${m++}. Ипотека`,rub(x.crL)]);}
+  const zr=[['Сумма займа',rub(x.loan),'b']];
+  if(land!=='none')zr.push(['в т. ч. на дом',rub(x.loanH),'s'],['в т. ч. на участок',rub(x.loanL),'s']);
+  zr.push(['Погашение',srcTxt]);
+  if(pay)zr.push(['Не хватает для погашения — клиент вносит собственные средства',rub(pay),'w']);
+  const d=new Date().toLocaleDateString('ru-RU');
+  const cl=$('rclient').value.trim();
+  LAST={pay:pay?rub(pay):'',wtitle:'Ипотеки'+(o.msk?' и материнского капитала':'')+' не хватает',d,cl,title:'Расчёт сделки: дом + земельный участок',secs:[['1. Исходные данные',inp],['2. Итог',tot],['3. '+(obj==='build'?'Дом (договор подряда)':'Дом'),hr]].concat(lr?[['4. Земельный участок',lr]]:[]).concat([[(lr?5:4)+'. Займ',zr]]),
+    warn:notes.filter(n=>n.includes('note-warn')).map(n=>n.replace(/<[^>]+>/g,''))};
+}
+$('rclient').addEventListener('input',calc);
+const xe=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const run=(t,o={})=>`<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>${o.b?'<w:b/>':''}${o.c?`<w:color w:val="${o.c}"/>`:''}<w:sz w:val="${o.sz||22}"/><w:szCs w:val="${o.sz||22}"/><w:lang w:val="ru-RU"/></w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r>`;
+const para=(t,o={})=>`<w:p><w:pPr><w:spacing w:before="${o.before||0}" w:after="${o.after||0}"/>${o.jc?`<w:jc w:val="${o.jc}"/>`:''}</w:pPr>${run(t,o)}</w:p>`;
+const B=(c,sz=6)=>`<w:top w:val="single" w:sz="${sz}" w:color="${c}"/><w:left w:val="single" w:sz="${sz}" w:color="${c}"/><w:bottom w:val="single" w:sz="${sz}" w:color="${c}"/><w:right w:val="single" w:sz="${sz}" w:color="${c}"/>`;
+function cell(t,w,o={}){return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.span?'<w:gridSpan w:val="2"/>':''}${o.fill?`<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>`:''}</w:tcPr><w:p><w:pPr><w:spacing w:before="${o.pad||50}" w:after="${o.pad||50}"/>${o.r?'<w:jc w:val="right"/>':''}</w:pPr>${run(t,{b:o.b,c:o.c,sz:o.sz})}</w:p></w:tc>`}
+function tbl(rows,{head,box}={}){
+  const bd=box?`<w:tblBorders>${B('1D5C86',12)}<w:insideH w:val="single" w:sz="4" w:color="C9D6DE"/></w:tblBorders>`:`<w:tblBorders><w:insideH w:val="single" w:sz="4" w:color="D3DCDB"/><w:bottom w:val="single" w:sz="4" w:color="D3DCDB"/></w:tblBorders>`;
+  let x=`<w:tbl><w:tblPr><w:tblW w:w="9355" w:type="dxa"/>${bd}<w:tblCellMar><w:left w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="6155"/><w:gridCol w:w="3200"/></w:tblGrid>`;
+  if(head)x+=`<w:tr>${cell(head,9355,{span:1,fill:'1D5C86',c:'FFFFFF',b:1,sz:26,pad:90})}</w:tr>`;
+  x+=rows.map(([a,b,c=''])=>{
+    if(c==='h')return `<w:tr>${cell(a,9355,{span:1,fill:'EEF2F1',b:1,c:'1D5C86',sz:20})}</w:tr>`;
+    const o={b:c==='b'||c==='k'||c==='w',fill:c==='k'?'E2EDF4':c==='w'?'FBEEDC':null,c:c==='w'?'B42318':null,sz:c==='k'?24:22};
+    return `<w:tr>${cell(a,6155,o)}${cell(b,3200,{...o,r:1})}</w:tr>`}).join('');
+  return x+'</w:tbl>'}
+function warnBox(title,lines){
+  return `<w:tbl><w:tblPr><w:tblW w:w="9355" w:type="dxa"/><w:tblBorders>${B('C2410C',4)}<w:left w:val="single" w:sz="36" w:color="C2410C"/></w:tblBorders><w:tblCellMar><w:left w:w="200" w:type="dxa"/><w:right w:w="200" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="9355"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="9355" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="FBEEDC"/></w:tcPr>`+
+  `<w:p><w:pPr><w:spacing w:before="120" w:after="80"/></w:pPr>${run('⚠ '+title,{b:1,c:'C2410C',sz:26})}</w:p>`+
+  lines.map(([t,amt])=>`<w:p><w:pPr><w:spacing w:after="80"/></w:pPr>${run(t)}${amt?run(' '+amt,{b:1,c:'B42318',sz:28}):''}</w:p>`).join('')+`<w:p><w:pPr><w:spacing w:after="60"/></w:pPr></w:p></w:tc></w:tr></w:tbl>`}
+async function makeDocx(R){
+  const z=new JSZip();
+  z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  let b=para(R.title,{b:1,sz:30,jc:'center',after:120})+para('Дата расчёта: '+R.d,{jc:'center',after:R.cl?0:200});
+  if(R.cl)b+=para('Клиент / объект: '+R.cl,{jc:'center',after:200});
+  R.secs.forEach(([t,rows],i)=>{b+=i<2?para(t,{b:1,c:'1D5C86',before:240,after:80})+tbl(rows):para('',{before:200})+tbl(rows,{head:t,box:1})});
+  if(R.pay)b+=para('',{before:240})+warnBox(R.wtitle,[['Недополучаем:',R.pay],['Клиенту нужно внести собственные средства на эту сумму. Если своих средств нет, сделка в таком виде не закрывается.','']]);
+  const other=R.warn.filter(w=>!w.includes('Суммы ипотеки'));
+  if(other.length){b+=para('',{before:160});other.forEach(w=>b+=para('• '+w,{after:60,c:'A35A00'}))}
+  b+=para('© Емельяненко Дарья Александровна. Объект авторского права, РИД, распространение без согласия запрещено.',{sz:18,c:'777777',before:360});
+  z.file('word/document.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${b}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="850" w:bottom="1134" w:left="1701" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`);
+  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+const fname=()=>'Расчёт сделки'+(LAST.cl?' — '+LAST.cl.replace(/[\\/:*?"<>|]/g,' ').slice(0,60):'')+'.docx';
+let downloads=null;
+$('dlBtn').onclick=async()=>{const st=$('dlStatus');
+  if(!downloads&&window.claude&&window.claude.use){st.textContent='Подключаю скачивание…';try{downloads=await claude.use('downloads')}catch(e){downloads=null}}
+  if(!downloads){
+    if(typeof JSZip==='undefined'){st.textContent='Не загрузилась библиотека для Word. Обновите страницу.';return}
+    try{const blob=await makeDocx(LAST);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname();document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);st.textContent='Файл скачан. Если не появился — откройте калькулятор в claude.ai или скопируйте текст.'}
+    catch(e){st.textContent='Не удалось создать файл.'}
+    return}
+  if(typeof JSZip==='undefined'){st.textContent='Не загрузилась библиотека для Word. Обновите страницу.';return}
+  st.textContent='Готовлю файл…';
+  try{const blob=await makeDocx(LAST);await downloads.save({filename:fname(),data:blob});st.textContent='Отчёт готов.'}
+  catch(e){const c=e&&e.code;st.textContent=c==='declined'?'Скачивание отменено.':c==='rate_limited'?'Окно сохранения уже открыто — подождите и нажмите ещё раз.':'Не удалось скачать (код: '+(c||(e&&e.message)||e)+').'}};
+(async()=>{try{if(window.claude&&window.claude.use)downloads=await claude.use('downloads')}catch(e){}})();
+$('copyBtn').onclick=async()=>{const st=$('dlStatus');
+  const txt=[LAST.title,'Дата расчёта: '+LAST.d,LAST.cl?'Клиент / объект: '+LAST.cl:''].filter(Boolean).concat(...LAST.secs.map(([t,r])=>['',t.toUpperCase(),...r.map(([a,b])=>a+': '+b)])).concat(LAST.warn.length?['','ПРЕДУПРЕЖДЕНИЯ',...LAST.warn]:[]).join('\n');
+  try{await navigator.clipboard.writeText(txt);st.textContent='Текст скопирован.'}catch(e){st.textContent='Не удалось скопировать.'}}; $('f').addEventListener('input',calc); $('f').addEventListener('change',calc); calc();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (err) {
+      console.warn('Offline mode is unavailable:', err);
+    });
+  });
+}
+</script>
+</body></html>
